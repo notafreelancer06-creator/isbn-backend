@@ -14,21 +14,32 @@ CORS(app)  # This allows your Vercel site to call this server
 
 def fetch_google_books(isbn):
     try:
-        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-        r = requests.get(url, timeout=8)
+        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}&maxResults=1"
+        headers = {"Accept": "application/json"}
+        r = requests.get(url, headers=headers, timeout=10)
+        
+        # If rate limited, wait and retry once
+        if r.status_code == 429:
+            time.sleep(2)
+            r = requests.get(url, headers=headers, timeout=10)
+        
+        if r.status_code != 200:
+            return {}
+            
         data = r.json()
         if data.get("totalItems", 0) == 0:
             return {}
         item = data["items"][0]["volumeInfo"]
         return {
-            "title":     item.get("title", ""),
-            "authors":   ", ".join(item.get("authors", [])),
-            "publisher": item.get("publisher", ""),
-            "year":      (item.get("publishedDate", "") or "")[:4],
-            "pages":     item.get("pageCount", ""),
-            "language":  item.get("language", ""),
-            "cover":     (item.get("imageLinks", {}) or {}).get("thumbnail", ""),
-            "description": item.get("description", "")[:300] if item.get("description") else "",
+            "title":       item.get("title", ""),
+            "authors":     ", ".join(item.get("authors", [])),
+            "publisher":   item.get("publisher", ""),
+            "year":        (item.get("publishedDate", "") or "")[:4],
+            "pages":       item.get("pageCount", ""),
+            "language":    item.get("language", ""),
+            "cover":       (item.get("imageLinks", {}) or {}).get("thumbnail", ""),
+            "description": (item.get("description", "") or "")[:300],
+            "categories":  ", ".join(item.get("categories", [])),
         }
     except Exception:
         return {}
